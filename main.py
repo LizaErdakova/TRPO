@@ -1,5 +1,5 @@
 import random
-list_figures = ["Шар", "Параллелепипед", "Тетраэдр"]
+list_figures = ["Шарик", "Параллелепипед", "Тетраэдр"]
 for x in range(10):
     ran_figure = random.choice(list_figures)
     ran_plotnost = random.uniform(0,1000)
