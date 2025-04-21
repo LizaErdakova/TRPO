@@ -75,10 +75,44 @@ const createCaloriesTable = async () => {
   }
 };
 
+// Создание таблицы products, если она не существует, и заполнение тестовыми данными
+const createProductsTable = async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS products (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        calories INT NOT NULL,
+        proteins INT NOT NULL,
+        fats INT NOT NULL,
+        carbs INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Таблица products успешно создана или уже существует');
+    const [rows] = await pool.query('SELECT COUNT(*) as count FROM products');
+    if (rows[0].count === 0) {
+      console.log('Добавление тестовых продуктов');
+      await pool.query(`
+        INSERT INTO products (name, calories, proteins, fats, carbs) VALUES
+        ('Apple', 52, 0.3, 0.2, 14),
+        ('Banana', 96, 1.3, 0.3, 27),
+        ('Chicken Breast', 165, 31, 3.6, 0),
+        ('Almonds', 579, 21, 50, 22),
+        ('Broccoli', 55, 3.7, 0.6, 11)
+      `);
+    }
+  } catch (error) {
+    console.error('Ошибка при создании таблицы products:', error);
+  }
+};
+
 // Инициализация базы данных
 const initDatabase = async () => {
   await createUsersTable();
   await createCaloriesTable();
+  await createProductsTable();
 };
 
 initDatabase();

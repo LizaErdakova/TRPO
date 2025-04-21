@@ -16,6 +16,7 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/calories', require('./routes/calories'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/products', require('./routes/products'));
 
 // Обработка ошибок
 app.use((err, req, res, next) => {
