@@ -23,6 +23,12 @@
             </div>
           </template>
         </el-autocomplete>
+        
+        <div class="mt-2 text-right">
+          <el-button type="primary" @click="openAddProductModal">
+            Добавить новый продукт
+          </el-button>
+        </div>
       </div>
     </div>
     
@@ -106,11 +112,92 @@
       v-else 
       description="В вашем дневнике пока нет продуктов. Воспользуйтесь поиском, чтобы добавить продукты." 
     />
+    
+    <!-- Модальное окно добавления продукта -->
+    <el-dialog
+      v-model="addProductVisible"
+      title="Добавить новый продукт"
+      width="500px"
+    >
+      <el-form 
+        :model="newProduct" 
+        :rules="productRules" 
+        ref="productForm" 
+        label-position="top"
+      >
+        <el-form-item label="Название продукта" prop="name">
+          <el-input v-model="newProduct.name" placeholder="Введите название продукта" />
+        </el-form-item>
+        
+        <el-form-item label="Калории (на 100г)" prop="calories">
+          <el-input-number 
+            v-model="newProduct.calories" 
+            :min="0" 
+            :max="5000" 
+            :precision="0" 
+            :step="1"
+            class="w-full"
+          />
+        </el-form-item>
+        
+        <div class="grid grid-cols-3 gap-4">
+          <el-form-item label="Белки (г)" prop="proteins">
+            <el-input-number 
+              v-model="newProduct.proteins" 
+              :min="0" 
+              :max="500" 
+              :precision="1" 
+              :step="0.1" 
+              class="w-full"
+            />
+          </el-form-item>
+          
+          <el-form-item label="Жиры (г)" prop="fats">
+            <el-input-number 
+              v-model="newProduct.fats" 
+              :min="0" 
+              :max="500" 
+              :precision="1" 
+              :step="0.1"
+              class="w-full"
+            />
+          </el-form-item>
+          
+          <el-form-item label="Углеводы (г)" prop="carbs">
+            <el-input-number 
+              v-model="newProduct.carbs" 
+              :min="0" 
+              :max="500" 
+              :precision="1" 
+              :step="0.1"
+              class="w-full"
+            />
+          </el-form-item>
+        </div>
+        
+        <el-form-item v-if="isAdmin">
+          <el-checkbox v-model="newProduct.isPublic">Добавить в общую базу данных</el-checkbox>
+          <div class="text-xs text-gray-500 mt-1">
+            Если отмечено, продукт будет доступен всем пользователям
+          </div>
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="addProductVisible = false">Отмена</el-button>
+          <el-button type="primary" :loading="loading" @click="submitNewProduct">
+            Добавить
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script>
 import axios from 'axios';
+import { ElMessage } from 'element-plus';
 
 export default {
   name: 'FoodDiaryPage',
@@ -118,10 +205,64 @@ export default {
     return {
       searchQuery: '',
       selectedProducts: [],
-      loading: false
+      loading: false,
+      addProductVisible: false,
+      isAdmin: false, // Заглушка, потом будем определять по токену
+      newProduct: {
+        name: '',
+        calories: 0,
+        proteins: 0,
+        fats: 0,
+        carbs: 0,
+        isPublic: false
+      },
+      productRules: {
+        name: [
+          { required: true, message: 'Пожалуйста, введите название продукта', trigger: 'blur' },
+          { min: 2, message: 'Название должно быть не менее 2 символов', trigger: 'blur' }
+        ],
+        calories: [
+          { required: true, message: 'Пожалуйста, укажите калорийность', trigger: 'blur' },
+          { type: 'number', min: 0, max: 5000, message: 'Калории должны быть от 0 до 5000', trigger: 'blur' }
+        ],
+        proteins: [
+          { required: true, message: 'Пожалуйста, укажите содержание белков', trigger: 'blur' },
+          { type: 'number', min: 0, max: 500, message: 'Белки должны быть от 0 до 500г', trigger: 'blur' }
+        ],
+        fats: [
+          { required: true, message: 'Пожалуйста, укажите содержание жиров', trigger: 'blur' },
+          { type: 'number', min: 0, max: 500, message: 'Жиры должны быть от 0 до 500г', trigger: 'blur' }
+        ],
+        carbs: [
+          { required: true, message: 'Пожалуйста, укажите содержание углеводов', trigger: 'blur' },
+          { type: 'number', min: 0, max: 500, message: 'Углеводы должны быть от 0 до 500г', trigger: 'blur' }
+        ]
+      }
     };
   },
+  created() {
+    // Проверяем, является ли пользователь администратором
+    this.checkIfAdmin();
+  },
   methods: {
+    // Проверка прав администратора
+    checkIfAdmin() {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          // В учебных целях просто получаем id пользователя из токена
+          // В реальном приложении здесь должна быть проверка роли
+          const tokenData = JSON.parse(atob(token.split('.')[1]));
+          this.isAdmin = tokenData.id === 1; // Считаем пользователя с id=1 администратором
+        } catch (error) {
+          console.error('Ошибка при проверке прав администратора:', error);
+          this.isAdmin = false;
+        }
+      } else {
+        this.isAdmin = false;
+      }
+    },
+    
     // Поиск продуктов с автодополнением
     async searchProducts(queryString, callback) {
       if (queryString.length < 2) {
@@ -131,15 +272,30 @@ export default {
       
       this.loading = true;
       try {
+        const token = localStorage.getItem('token');
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        
+        console.log('Запрос поиска продуктов:', queryString);
+        
         const response = await axios.get('/api/products/search', {
           params: {
             q: queryString,
             limit: 5
-          }
+          },
+          headers
         });
+        
+        console.log('Результаты поиска продуктов:', response.data);
         callback(response.data);
       } catch (error) {
         console.error('Ошибка при поиске продуктов:', error);
+        if (error.response) {
+          console.error('Ответ сервера:', error.response.data);
+        }
+        ElMessage({
+          message: 'Ошибка при поиске продуктов. Пожалуйста, попробуйте снова.',
+          type: 'error'
+        });
         callback([]);
       } finally {
         this.loading = false;
@@ -151,19 +307,25 @@ export default {
       // Стандартное количество - 100г
       const quantity = 100;
       
+      // Преобразуем все значения в числа, чтобы избежать ошибок
+      const calories = Number(item.calories) || 0;
+      const proteins = Number(item.proteins) || 0;
+      const fats = Number(item.fats) || 0;
+      const carbs = Number(item.carbs) || 0;
+      
       // Добавляем продукт в список выбранных с рассчитанными значениями
       this.selectedProducts.push({
         id: item.id,
         name: item.name,
-        calories: item.calories,
-        proteins: item.proteins,
-        fats: item.fats,
-        carbs: item.carbs,
+        calories: calories,
+        proteins: proteins,
+        fats: fats,
+        carbs: carbs,
         quantity: quantity,
-        calculatedCalories: item.calories,
-        calculatedProteins: item.proteins,
-        calculatedFats: item.fats,
-        calculatedCarbs: item.carbs
+        calculatedCalories: calories,
+        calculatedProteins: proteins,
+        calculatedFats: fats,
+        calculatedCarbs: carbs
       });
       
       // Очищаем строку поиска
@@ -178,9 +340,14 @@ export default {
     // Расчет общего количества калорий/белков/жиров/углеводов
     getTotalNutrition(nutrient) {
       const calculatedNutrient = 'calculated' + nutrient.charAt(0).toUpperCase() + nutrient.slice(1);
-      return this.selectedProducts.reduce((total, product) => {
-        return total + product[calculatedNutrient];
-      }, 0).toFixed(1);
+      const total = this.selectedProducts.reduce((sum, product) => {
+        // Проверяем, что значение является числом
+        const value = product[calculatedNutrient];
+        return sum + (typeof value === 'number' ? value : 0);
+      }, 0);
+      
+      // Проверяем, что результат - число
+      return typeof total === 'number' ? total.toFixed(1) : '0.0';
     },
     
     // Обновление КБЖУ при изменении веса продукта
@@ -197,20 +364,128 @@ export default {
         this.selectedProducts[index].quantity = 5000;
       }
       
+      // Убедимся, что базовые значения - числа
+      const calories = Number(product.calories) || 0;
+      const proteins = Number(product.proteins) || 0;
+      const fats = Number(product.fats) || 0;
+      const carbs = Number(product.carbs) || 0;
+      
       // Пересчитываем КБЖУ согласно весу
-      const calculatedCalories = (product.calories * quantity) / 100;
-      const calculatedProteins = (product.proteins * quantity) / 100;
-      const calculatedFats = (product.fats * quantity) / 100;
-      const calculatedCarbs = (product.carbs * quantity) / 100;
+      const calculatedCalories = (calories * quantity) / 100;
+      const calculatedProteins = (proteins * quantity) / 100;
+      const calculatedFats = (fats * quantity) / 100;
+      const calculatedCarbs = (carbs * quantity) / 100;
       
       this.selectedProducts[index] = {
         ...product,
         quantity,
+        calories,
+        proteins,
+        fats,
+        carbs,
         calculatedCalories,
         calculatedProteins,
         calculatedFats,
         calculatedCarbs
       };
+    },
+    
+    // Открыть модальное окно добавления продукта
+    openAddProductModal() {
+      // Сбрасываем форму
+      this.newProduct = {
+        name: '',
+        calories: 0,
+        proteins: 0,
+        fats: 0,
+        carbs: 0,
+        isPublic: false
+      };
+      this.addProductVisible = true;
+    },
+    
+    // Добавление нового продукта
+    async submitNewProduct() {
+      // Проверяем валидность формы
+      this.$refs.productForm.validate(async (valid) => {
+        if (!valid) {
+          return false;
+        }
+        
+        this.loading = true;
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) {
+            throw new Error('Требуется авторизация');
+          }
+          
+          console.log('Отправка данных нового продукта:', this.newProduct);
+          
+          // Преобразуем данные в правильный формат
+          const productData = {
+            name: this.newProduct.name,
+            calories: Number(this.newProduct.calories),
+            proteins: Number(this.newProduct.proteins),
+            fats: Number(this.newProduct.fats),
+            carbs: Number(this.newProduct.carbs),
+            isPublic: Boolean(this.newProduct.isPublic)
+          };
+          
+          const response = await axios.post('/api/products/add', productData, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          console.log('Ответ сервера:', response.data);
+          
+          // Закрываем модальное окно
+          this.addProductVisible = false;
+          
+          // Показываем сообщение об успехе
+          ElMessage({
+            message: 'Продукт успешно добавлен',
+            type: 'success'
+          });
+          
+          // Преобразуем значения с сервера в числа
+          const newProduct = response.data.product;
+          this.handleProductSelect({
+            id: newProduct.id,
+            name: newProduct.name,
+            calories: Number(newProduct.calories) || 0,
+            proteins: Number(newProduct.proteins) || 0,
+            fats: Number(newProduct.fats) || 0,
+            carbs: Number(newProduct.carbs) || 0
+          });
+          
+        } catch (error) {
+          let errorMessage = 'Ошибка при добавлении продукта';
+          
+          console.error('Ошибка при добавлении продукта:', error);
+          if (error.response) {
+            console.error('Ответ сервера:', error.response.data);
+            
+            if (error.response.data && error.response.data.message) {
+              errorMessage = error.response.data.message;
+              
+              // Если есть детали ошибки, показываем их
+              if (error.response.data.details) {
+                errorMessage = error.response.data.details;
+              }
+            }
+          }
+          
+          ElMessage({
+            message: errorMessage,
+            type: 'error',
+            duration: 5000
+          });
+        } finally {
+          this.loading = false;
+        }
+      });
     }
   }
 };

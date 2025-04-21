@@ -2,7 +2,6 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const { registerSchema } = require('../utils/validation');
-const { validationResult } = require('express-validator');
 
 const register = async (req, res) => {
   try {

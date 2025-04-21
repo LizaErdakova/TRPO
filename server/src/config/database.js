@@ -83,11 +83,16 @@ const createProductsTable = async () => {
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         calories INT NOT NULL,
-        proteins INT NOT NULL,
-        fats INT NOT NULL,
-        carbs INT NOT NULL,
+        proteins DECIMAL(5,2) NOT NULL,
+        fats DECIMAL(5,2) NOT NULL,
+        carbs DECIMAL(5,2) NOT NULL,
+        user_id INT NULL,
+        is_public BOOLEAN NOT NULL DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_products_name (name),
+        INDEX idx_products_user_public (user_id, is_public)
       )
     `);
     console.log('Таблица products успешно создана или уже существует');
@@ -95,13 +100,14 @@ const createProductsTable = async () => {
     if (rows[0].count === 0) {
       console.log('Добавление тестовых продуктов');
       await pool.query(`
-        INSERT INTO products (name, calories, proteins, fats, carbs) VALUES
-        ('Apple', 52, 0.3, 0.2, 14),
-        ('Banana', 96, 1.3, 0.3, 27),
-        ('Chicken Breast', 165, 31, 3.6, 0),
-        ('Almonds', 579, 21, 50, 22),
-        ('Broccoli', 55, 3.7, 0.6, 11)
+        INSERT INTO products (name, calories, proteins, fats, carbs, is_public, user_id) VALUES
+        ('Apple', 52, 0.3, 0.2, 14, TRUE, NULL),
+        ('Banana', 96, 1.3, 0.3, 27, TRUE, NULL),
+        ('Chicken Breast', 165, 31, 3.6, 0, TRUE, NULL),
+        ('Almonds', 579, 21, 50, 22, TRUE, NULL),
+        ('Broccoli', 55, 3.7, 0.6, 11, TRUE, NULL)
       `);
+      console.log('Тестовые продукты успешно добавлены');
     }
   } catch (error) {
     console.error('Ошибка при создании таблицы products:', error);
@@ -112,7 +118,19 @@ const createProductsTable = async () => {
 const initDatabase = async () => {
   await createUsersTable();
   await createCaloriesTable();
-  await createProductsTable();
+  
+  // Пересоздаем таблицу продуктов для устранения возможных проблем
+  try {
+    console.log('Попытка перезаписи таблицы products...');
+    await pool.query('DROP TABLE IF EXISTS products');
+    console.log('Таблица products успешно удалена. Создание новой таблицы...');
+    await createProductsTable();
+    console.log('Таблица products успешно пересоздана');
+  } catch (error) {
+    console.error('Ошибка при пересоздании таблицы products:', error);
+    // Если не удалось пересоздать, пробуем обычное создание
+    await createProductsTable();
+  }
 };
 
 initDatabase();
